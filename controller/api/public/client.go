@@ -120,9 +120,17 @@ func (c *grpcOverHttpClient) post(ctx context.Context, url *url.URL, req proto.M
 		return nil, err
 	}
 
-	rsp, err := c.httpClient.Do(httpReq.WithContext(ctx))
+	reqWithCtx := httpReq.WithContext(ctx)
+	rsp, err := c.httpClient.Do(reqWithCtx)
+
+	// retry once on server closed idle connection
+	// https://github.com/golang/go/issues/19943#issuecomment-355607646
+	if err != nil && err.Error() == "http: server closed idle connection" {
+		rsp, err = c.httpClient.Do(reqWithCtx)
+	}
+
 	if err != nil {
-		log.Debugf("Error invoking [%s]: %v", url.String(), err)
+		log.Errorf("Error invoking [%s]: %v", url.String(), err)
 	} else {
 		log.Debugf("Response from [%s] had headers: %v", url.String(), rsp.Header)
 	}
